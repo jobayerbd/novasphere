@@ -1,7 +1,8 @@
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Product, Order, CartItem, Category, ViewMode, User, Address, GlobalVariation, ShippingOption, PaymentMethod } from '../types';
 import { INITIAL_PRODUCTS, INITIAL_ORDERS, CATEGORIES } from '../constants';
+import { initPixel, trackPixelEvent } from '../services/fbPixel';
 
 interface AppContextType {
   products: Product[];
@@ -16,6 +17,7 @@ interface AppContextType {
   users: User[];
   selectedProduct: Product | null;
   lastOrder: Order | null;
+  pixelId: string;
   setViewMode: (mode: ViewMode) => void;
   setSelectedProduct: (product: Product | null) => void;
   addToCart: (product: Product, quantity?: number, selectedOptions?: Record<string, string>, price?: number) => void;
@@ -34,9 +36,9 @@ interface AppContextType {
   addGlobalVariation: (v: GlobalVariation) => void;
   updateGlobalVariation: (v: GlobalVariation) => void;
   deleteGlobalVariation: (id: string) => void;
-  // Configuration Actions
   setShippingOptions: (options: ShippingOption[]) => void;
   setPaymentMethods: (methods: PaymentMethod[]) => void;
+  setPixelId: (id: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -68,6 +70,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
+  const [pixelId, setPixelIdState] = useState<string>(localStorage.getItem('nova_pixel_id') || '');
+
+  // Initialize Pixel if ID exists
+  useEffect(() => {
+    if (pixelId) {
+      initPixel(pixelId);
+    }
+  }, [pixelId]);
+
+  // Track View Transitions
+  useEffect(() => {
+    if (pixelId) {
+      trackPixelEvent('PageView');
+    }
+  }, [viewMode, pixelId]);
+
+  const setPixelId = (id: string) => {
+    setPixelIdState(id);
+    localStorage.setItem('nova_pixel_id', id);
+  };
 
   const addToCart = (product: Product, quantity: number = 1, selectedOptions?: Record<string, string>, price?: number) => {
     const unitPrice = price || product.price;
@@ -83,6 +105,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         );
       }
       return [...prev, { ...product, quantity, finalUnitPrice: unitPrice, price: unitPrice, selectedOptions }];
+    });
+
+    // Track Pixel Event
+    trackPixelEvent('AddToCart', {
+      content_name: product.name,
+      content_ids: [product.id],
+      content_type: 'product',
+      value: unitPrice * quantity,
+      currency: 'USD'
     });
   };
 
@@ -117,6 +148,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
     setOrders(prev => [newOrder, ...prev]);
     setLastOrder(newOrder);
+
+    // Track Pixel Purchase
+    trackPixelEvent('Purchase', {
+      value: newOrder.total,
+      currency: 'USD',
+      num_items: cart.length,
+      content_ids: cart.map(i => i.id)
+    });
+
     clearCart();
     setViewMode('thank-you');
   };
@@ -143,11 +183,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   return (
     <AppContext.Provider value={{
-      products, orders, categories: CATEGORIES, globalVariations, shippingOptions, paymentMethods, cart, viewMode, currentUser, users, selectedProduct, lastOrder,
+      products, orders, categories: CATEGORIES, globalVariations, shippingOptions, paymentMethods, cart, viewMode, currentUser, users, selectedProduct, lastOrder, pixelId,
       setViewMode, setSelectedProduct, addToCart, removeFromCart, updateCartQuantity, clearCart,
       addProduct, updateProduct, deleteProduct, placeOrder, updateOrderStatus,
       login, signup, logout, updateUser, addGlobalVariation, updateGlobalVariation, deleteGlobalVariation,
-      setShippingOptions, setPaymentMethods
+      setShippingOptions, setPaymentMethods, setPixelId
     }}>
       {children}
     </AppContext.Provider>

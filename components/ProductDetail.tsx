@@ -1,12 +1,25 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../store/AppContext';
+import { trackPixelEvent } from '../services/fbPixel';
 
 const ProductDetail: React.FC = () => {
   const { selectedProduct, addToCart, setViewMode } = useApp();
   const [quantity, setQuantity] = useState(1);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [activeImage, setActiveImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (selectedProduct) {
+      trackPixelEvent('ViewContent', {
+        content_name: selectedProduct.name,
+        content_ids: [selectedProduct.id],
+        content_type: 'product',
+        value: selectedProduct.price,
+        currency: 'USD'
+      });
+    }
+  }, [selectedProduct]);
 
   if (!selectedProduct) return null;
 

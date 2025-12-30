@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../store/AppContext';
 import { Address, ShippingOption, PaymentMethod } from '../types';
+import { trackPixelEvent } from '../services/fbPixel';
 
 const CheckoutPage: React.FC = () => {
   const { cart, currentUser, placeOrder, setViewMode, shippingOptions, paymentMethods } = useApp();
@@ -11,6 +12,17 @@ const CheckoutPage: React.FC = () => {
   
   const [selectedShipping, setSelectedShipping] = useState<ShippingOption | null>(shippingOptions[0] || null);
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod | null>(paymentMethods.find(p => p.isActive) || null);
+
+  useEffect(() => {
+    if (cart.length > 0) {
+      trackPixelEvent('InitiateCheckout', {
+        num_items: cart.length,
+        content_ids: cart.map(i => i.id),
+        currency: 'USD',
+        value: cart.reduce((acc, i) => acc + (i.finalUnitPrice * i.quantity), 0)
+      });
+    }
+  }, []);
 
   const [manualAddress, setManualAddress] = useState<Partial<Address>>({
     fullName: '',
@@ -42,7 +54,6 @@ const CheckoutPage: React.FC = () => {
   const handlePlaceOrder = () => {
     const finalPhone = useManualAddress ? manualAddress.phoneNumber : (selectedAddress?.phoneNumber || shippingInfo.phone);
 
-    // Email is now optional, so we only check name and finalPhone
     if (!shippingInfo.name || !finalPhone) {
       alert("Please provide contact name and a valid mobile number.");
       return;
@@ -91,7 +102,6 @@ const CheckoutPage: React.FC = () => {
       <div className="flex flex-col lg:grid lg:grid-cols-12 gap-6 md:gap-8">
         <div className="lg:col-span-7 space-y-4 md:space-y-6">
           
-          {/* Contact Section - Compact */}
           <section className="bg-white p-5 md:p-6 rounded-2xl border shadow-sm">
             <div className="flex items-center gap-3 mb-5">
               <span className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-black text-xs">1</span>
@@ -113,7 +123,6 @@ const CheckoutPage: React.FC = () => {
             </div>
           </section>
 
-          {/* Step 2: Shipping Address - More Dense */}
           <section className="bg-white p-5 md:p-6 rounded-2xl border shadow-sm">
             <div className="flex justify-between items-center mb-5">
               <div className="flex items-center gap-3">
@@ -187,7 +196,6 @@ const CheckoutPage: React.FC = () => {
             )}
           </section>
 
-          {/* Step 3: Shipping & Payment - Grid for density */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <section className="bg-white p-5 rounded-2xl border shadow-sm">
                <div className="flex items-center gap-3 mb-4">
@@ -235,7 +243,6 @@ const CheckoutPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Sidebar Summary - Compact and sticky on desktop */}
         <div className="lg:col-span-5">
           <div className="sticky top-24 space-y-4">
             <div className="bg-gray-900 text-white p-6 rounded-[1.5rem] shadow-xl relative">
