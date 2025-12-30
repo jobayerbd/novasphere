@@ -1,7 +1,8 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../store/AppContext';
 import { Product, Order, GlobalVariation, ProductVariation, ProductVariantOption, ShippingOption, PaymentMethod } from '../types';
+import { isPixelBlocked, trackPixelEvent } from '../services/fbPixel';
 
 type AdminTab = 'dashboard' | 'products' | 'orders' | 'variations' | 'settings';
 
@@ -20,6 +21,18 @@ const AdminPanel: React.FC = () => {
   // Settings States
   const [newShipping, setNewShipping] = useState<Partial<ShippingOption>>({ name: '', charge: 0 });
   const [tempPixelId, setTempPixelId] = useState(pixelId);
+  const [pixelStatus, setPixelStatus] = useState<'checking' | 'active' | 'blocked' | 'idle'>('idle');
+
+  useEffect(() => {
+    if (pixelId) {
+      setPixelStatus('checking');
+      isPixelBlocked().then(blocked => {
+        setPixelStatus(blocked ? 'blocked' : 'active');
+      });
+    } else {
+      setPixelStatus('idle');
+    }
+  }, [pixelId]);
 
   const metrics = useMemo(() => {
     const totalRev = orders.reduce((acc, o) => o.status !== 'cancelled' ? acc + o.total : acc, 0);
@@ -38,31 +51,43 @@ const AdminPanel: React.FC = () => {
     { id: 'settings', label: 'Settings', icon: 'fa-sliders' },
   ];
 
-  // Settings Handlers
+  const handleSavePixelId = () => {
+    if (!tempPixelId) {
+      alert("Please enter a valid Pixel ID");
+      return;
+    }
+    setPixelId(tempPixelId);
+    alert("Meta Pixel ID updated and synced!");
+  };
+
+  const sendTestEvent = () => {
+    trackPixelEvent('Contact', { method: 'Admin Test Button' });
+    alert("Test event 'Contact' sent to Pixel queue. Check your Events Manager.");
+  };
+
+  // Fix: Added missing removeShipping handler
+  const removeShipping = (id: string) => {
+    setShippingOptions(shippingOptions.filter(opt => opt.id !== id));
+  };
+
+  // Fix: Added missing handleAddShipping handler
   const handleAddShipping = () => {
-    if (!newShipping.name) return;
-    const opt: ShippingOption = {
+    if (!newShipping.name) {
+      alert("Shipping name is required.");
+      return;
+    }
+    const newOpt: ShippingOption = {
       id: `ship-${Date.now()}`,
       name: newShipping.name,
       charge: newShipping.charge || 0
     };
-    setShippingOptions([...shippingOptions, opt]);
+    setShippingOptions([...shippingOptions, newOpt]);
     setNewShipping({ name: '', charge: 0 });
   };
 
-  const removeShipping = (id: string) => {
-    setShippingOptions(shippingOptions.filter(s => s.id !== id));
-  };
-
+  // Fix: Added missing togglePaymentMethod handler
   const togglePaymentMethod = (id: string) => {
-    setPaymentMethods(paymentMethods.map(p => 
-      p.id === id ? { ...p, isActive: !p.isActive } : p
-    ));
-  };
-
-  const handleSavePixelId = () => {
-    setPixelId(tempPixelId);
-    alert("Meta Pixel ID updated successfully.");
+    setPaymentMethods(paymentMethods.map(m => m.id === id ? { ...m, isActive: !m.isActive } : m));
   };
 
   const handleSaveProduct = () => {
@@ -70,7 +95,6 @@ const AdminPanel: React.FC = () => {
       alert("Name and Regular Price are required.");
       return;
     }
-
     const p = {
       ...editingProduct,
       id: editingProduct.id || Date.now().toString(),
@@ -82,7 +106,6 @@ const AdminPanel: React.FC = () => {
       gallery: editingProduct.gallery || [],
       category: editingProduct.category || categories[0].id
     } as Product;
-
     if (editingProduct.id) updateProduct(p);
     else addProduct(p);
     setEditingProduct(null);
@@ -91,7 +114,6 @@ const AdminPanel: React.FC = () => {
   const addVariationToProduct = (presetId: string) => {
     const preset = globalVariations.find(v => v.id === presetId);
     if (!preset || editingProduct?.variations?.find(v => v.id === presetId)) return;
-
     const newProdVar: ProductVariation = {
       id: preset.id,
       name: preset.name,
@@ -103,29 +125,20 @@ const AdminPanel: React.FC = () => {
         stock: editingProduct?.stock || 0
       }))
     };
-
-    setEditingProduct(prev => ({
-      ...prev,
-      variations: [...(prev?.variations || []), newProdVar]
-    }));
+    setEditingProduct(prev => ({ ...prev, variations: [...(prev?.variations || []), newProdVar] }));
   };
 
   const removeVariationFromProduct = (vId: string) => {
-    setEditingProduct(prev => ({
-      ...prev,
-      variations: (prev?.variations || []).filter(v => v.id !== vId)
-    }));
+    setEditingProduct(prev => ({ ...prev, variations: (prev?.variations || []).filter(v => v.id !== vId) }));
   };
 
   const updateVariantOption = (vIdx: number, oIdx: number, field: keyof ProductVariantOption, val: any) => {
     const newVars = [...(editingProduct?.variations || [])];
     const newOpts = [...newVars[vIdx].options];
     newOpts[oIdx] = { ...newOpts[oIdx], [field]: val };
-    
     const activeSale = field === 'salePrice' ? val : newOpts[oIdx].salePrice;
     const activeReg = field === 'regularPrice' ? val : newOpts[oIdx].regularPrice;
     newOpts[oIdx].price = (activeSale && activeSale > 0) ? activeSale : activeReg;
-    
     newVars[vIdx] = { ...newVars[vIdx], options: newOpts };
     setEditingProduct(prev => ({ ...prev, variations: newVars }));
   };
@@ -188,7 +201,6 @@ const AdminPanel: React.FC = () => {
           )}
         </div>
 
-        {/* --- Dashboard Tab --- */}
         {activeTab === 'dashboard' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in">
             <div className="bg-white p-8 rounded-3xl border shadow-sm">
@@ -206,7 +218,6 @@ const AdminPanel: React.FC = () => {
           </div>
         )}
 
-        {/* --- Inventory Tab --- */}
         {activeTab === 'products' && (
           <div className="animate-in fade-in">
              <div className="bg-white rounded-3xl border overflow-hidden shadow-sm">
@@ -250,7 +261,6 @@ const AdminPanel: React.FC = () => {
           </div>
         )}
 
-        {/* --- Orders Tab --- */}
         {activeTab === 'orders' && (
           <div className="bg-white rounded-3xl border overflow-hidden shadow-sm animate-in fade-in">
             <div className="overflow-x-auto">
@@ -292,10 +302,8 @@ const AdminPanel: React.FC = () => {
           </div>
         )}
 
-        {/* --- Settings Tab --- */}
         {activeTab === 'settings' && (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 animate-in fade-in">
-             {/* Shipping */}
              <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm">
                 <div className="flex items-center gap-4 mb-8">
                   <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center">
@@ -306,6 +314,7 @@ const AdminPanel: React.FC = () => {
                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Global delivery charges</p>
                   </div>
                 </div>
+                {/* Shipping Form Content */}
                 <div className="space-y-3 mb-8">
                   {shippingOptions.map(opt => (
                     <div key={opt.id} className="flex justify-between items-center p-5 bg-gray-50 rounded-2xl border border-gray-100 group">
@@ -335,19 +344,27 @@ const AdminPanel: React.FC = () => {
                 </div>
              </div>
 
-             {/* Marketing & Payments */}
              <div className="space-y-8">
-               {/* FB Pixel Config */}
                <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm">
-                  <div className="flex items-center gap-4 mb-8">
-                    <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
-                      <i className="fab fa-facebook-f text-lg"></i>
+                  <div className="flex justify-between items-start mb-8">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
+                        <i className="fab fa-facebook-f text-lg"></i>
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-black text-gray-900">Meta Pixel</h3>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Marketing & Events</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-xl font-black text-gray-900">Meta Pixel</h3>
-                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Marketing & Events</p>
+                    {/* Status Badge */}
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full animate-pulse ${pixelStatus === 'active' ? 'bg-emerald-500' : pixelStatus === 'blocked' ? 'bg-rose-500' : 'bg-gray-300'}`}></span>
+                      <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">
+                        {pixelStatus === 'active' ? 'Script Active' : pixelStatus === 'blocked' ? 'Blocked by AdBlocker' : 'Not Ready'}
+                      </span>
                     </div>
                   </div>
+
                   <div className="space-y-4">
                     <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block">Pixel ID</label>
                     <input 
@@ -357,19 +374,31 @@ const AdminPanel: React.FC = () => {
                       onChange={e => setTempPixelId(e.target.value)}
                       className="w-full bg-gray-50 border border-gray-100 p-4 rounded-xl outline-none font-bold text-xs focus:ring-2 focus:ring-blue-500"
                     />
-                    <button 
-                      onClick={handleSavePixelId}
-                      className="w-full bg-blue-600 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all shadow-md"
-                    >
-                      Sync Meta Pixel
-                    </button>
-                    <p className="text-[8px] text-gray-400 leading-relaxed italic">
-                      Tracks standard events: ViewContent, AddToCart, InitiateCheckout, and Purchase.
-                    </p>
+                    <div className="grid grid-cols-2 gap-3">
+                       <button 
+                        onClick={handleSavePixelId}
+                        className="bg-blue-600 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all shadow-md"
+                      >
+                        Save & Sync
+                      </button>
+                      <button 
+                        onClick={sendTestEvent}
+                        disabled={!pixelId}
+                        className="bg-gray-100 text-gray-600 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-200 transition-all disabled:opacity-50"
+                      >
+                        Send Test Event
+                      </button>
+                    </div>
+                    {pixelStatus === 'blocked' && (
+                      <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl">
+                        <p className="text-[9px] text-rose-600 font-bold leading-relaxed">
+                          ⚠️ WARNING: We detected that an Ad-blocker is preventing the Pixel from loading. Please disable any Ad-blockers on this site to see data in Facebook.
+                        </p>
+                      </div>
+                    )}
                   </div>
                </div>
 
-               {/* Payments */}
                <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm">
                   <div className="flex items-center gap-4 mb-8">
                     <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center">
@@ -401,162 +430,84 @@ const AdminPanel: React.FC = () => {
           </div>
         )}
 
-        {/* --- Product Modal --- */}
         {editingProduct && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-md p-4 overflow-y-auto">
             <div className="bg-white w-full max-w-6xl rounded-[3rem] shadow-2xl p-6 md:p-12 relative my-auto animate-in zoom-in duration-300 flex flex-col max-h-[90vh]">
               <button onClick={() => setEditingProduct(null)} className="absolute top-8 right-10 text-gray-300 hover:text-gray-900 transition-colors z-10">
                 <i className="fas fa-times text-2xl"></i>
               </button>
-
               <h2 className="text-2xl md:text-4xl font-black tracking-tighter mb-10 pr-12">
                 {editingProduct.id ? 'Refine Product' : 'Craft New Product'}
               </h2>
-
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 overflow-y-auto no-scrollbar pr-2 flex-grow">
-                
-                {/* Left Column: Basic Details & Media */}
                 <div className="lg:col-span-7 space-y-8">
                   <div className="space-y-4">
                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b pb-2">Core Identity</p>
-                    <input 
-                      type="text" placeholder="Visual Title *" 
-                      className="w-full bg-gray-50 border border-gray-100 p-5 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-indigo-500 transition-all"
-                      value={editingProduct.name} onChange={e => setEditingProduct({...editingProduct, name: e.target.value})}
-                    />
+                    <input type="text" placeholder="Visual Title *" className="w-full bg-gray-50 border border-gray-100 p-5 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-indigo-500 transition-all" value={editingProduct.name} onChange={e => setEditingProduct({...editingProduct, name: e.target.value})} />
                     <div className="grid grid-cols-2 gap-4">
-                       <select 
-                        className="bg-gray-50 border border-gray-100 p-5 rounded-2xl outline-none font-bold text-xs focus:ring-2 focus:ring-indigo-500 transition-all appearance-none"
-                        value={editingProduct.category} onChange={e => setEditingProduct({...editingProduct, category: e.target.value})}
-                      >
+                       <select className="bg-gray-50 border border-gray-100 p-5 rounded-2xl outline-none font-bold text-xs focus:ring-2 focus:ring-indigo-500 transition-all appearance-none" value={editingProduct.category} onChange={e => setEditingProduct({...editingProduct, category: e.target.value})}>
                         {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                       </select>
-                      <input 
-                        type="number" placeholder="Global Stock *" 
-                        className="bg-gray-50 border border-gray-100 p-5 rounded-2xl outline-none font-black text-xs focus:ring-2 focus:ring-indigo-500 transition-all"
-                        value={editingProduct.stock} onChange={e => setEditingProduct({...editingProduct, stock: parseInt(e.target.value)})}
-                      />
+                      <input type="number" placeholder="Global Stock *" className="bg-gray-50 border border-gray-100 p-5 rounded-2xl outline-none font-black text-xs focus:ring-2 focus:ring-indigo-500 transition-all" value={editingProduct.stock} onChange={e => setEditingProduct({...editingProduct, stock: parseInt(e.target.value)})} />
                     </div>
-                    <textarea 
-                      placeholder="Product Narrative / Specifications *" 
-                      rows={4}
-                      className="w-full bg-gray-50 border border-gray-100 p-5 rounded-2xl outline-none font-medium text-xs focus:ring-2 focus:ring-indigo-500 transition-all"
-                      value={editingProduct.description} onChange={e => setEditingProduct({...editingProduct, description: e.target.value})}
-                    />
+                    <textarea placeholder="Product Narrative / Specifications *" rows={4} className="w-full bg-gray-50 border border-gray-100 p-5 rounded-2xl outline-none font-medium text-xs focus:ring-2 focus:ring-indigo-500 transition-all" value={editingProduct.description} onChange={e => setEditingProduct({...editingProduct, description: e.target.value})} />
                   </div>
-
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Base Regular Price</label>
-                      <input 
-                        type="number" placeholder="0.00" 
-                        className="w-full bg-gray-50 border border-gray-100 p-5 rounded-2xl outline-none font-black text-sm focus:ring-2 focus:ring-indigo-500 transition-all"
-                        value={editingProduct.regularPrice} onChange={e => setEditingProduct({...editingProduct, regularPrice: parseFloat(e.target.value)})}
-                      />
+                      <input type="number" placeholder="0.00" className="w-full bg-gray-50 border border-gray-100 p-5 rounded-2xl outline-none font-black text-sm focus:ring-2 focus:ring-indigo-500 transition-all" value={editingProduct.regularPrice} onChange={e => setEditingProduct({...editingProduct, regularPrice: parseFloat(e.target.value)})} />
                     </div>
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Limited Offer Price</label>
-                      <input 
-                        type="number" placeholder="Optional" 
-                        className="w-full bg-gray-50 border border-gray-100 p-5 rounded-2xl outline-none font-black text-sm focus:ring-2 focus:ring-indigo-500 transition-all text-rose-500"
-                        value={editingProduct.salePrice} onChange={e => setEditingProduct({...editingProduct, salePrice: parseFloat(e.target.value)})}
-                      />
+                      <input type="number" placeholder="Optional" className="w-full bg-gray-50 border border-gray-100 p-5 rounded-2xl outline-none font-black text-sm focus:ring-2 focus:ring-indigo-500 transition-all text-rose-500" value={editingProduct.salePrice} onChange={e => setEditingProduct({...editingProduct, salePrice: parseFloat(e.target.value)})} />
                     </div>
                   </div>
-
-                  {/* Assets */}
                   <div className="space-y-6">
                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b pb-2">Media Assets</p>
                     <div className="space-y-3">
                       <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Master Showcase URL</label>
-                      <input 
-                        type="text" placeholder="Main Image URL *" 
-                        className="w-full bg-gray-50 border border-gray-100 p-4 rounded-xl outline-none font-bold text-[10px] focus:ring-2 focus:ring-indigo-500"
-                        value={editingProduct.image} onChange={e => setEditingProduct({...editingProduct, image: e.target.value})}
-                      />
+                      <input type="text" placeholder="Main Image URL *" className="w-full bg-gray-50 border border-gray-100 p-4 rounded-xl outline-none font-bold text-[10px] focus:ring-2 focus:ring-indigo-500" value={editingProduct.image} onChange={e => setEditingProduct({...editingProduct, image: e.target.value})} />
                     </div>
-                    
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
-                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Gallery Expansion</span>
+                        <span className="text-9px font-black text-gray-400 uppercase tracking-widest">Gallery Expansion</span>
                         <button onClick={addGalleryImage} className="text-[9px] font-black text-indigo-600 uppercase tracking-widest hover:underline">+ Add New Slide</button>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {editingProduct.gallery?.map((url, idx) => (
                           <div key={idx} className="relative group">
-                            <input 
-                              type="text" placeholder={`Slide Link #${idx + 1}`}
-                              className="w-full bg-gray-50 border border-gray-100 p-4 rounded-xl outline-none font-bold text-[10px] focus:ring-2 focus:ring-indigo-500"
-                              value={url} onChange={e => handleGalleryChange(idx, e.target.value)}
-                            />
-                            <button onClick={() => removeGalleryImage(idx)} className="absolute right-3 top-1/2 -translate-y-1/2 text-rose-300 hover:text-rose-500 p-1">
-                              <i className="fas fa-trash-alt text-[10px]"></i>
-                            </button>
+                            <input type="text" placeholder={`Slide Link #${idx + 1}`} className="w-full bg-gray-50 border border-gray-100 p-4 rounded-xl outline-none font-bold text-[10px] focus:ring-2 focus:ring-indigo-500" value={url} onChange={e => handleGalleryChange(idx, e.target.value)} />
+                            <button onClick={() => removeGalleryImage(idx)} className="absolute right-3 top-1/2 -translate-y-1/2 text-rose-300 hover:text-rose-500 p-1"><i className="fas fa-trash-alt text-[10px]"></i></button>
                           </div>
                         ))}
                       </div>
                     </div>
                   </div>
                 </div>
-
-                {/* Right Column: Deep Variations */}
                 <div className="lg:col-span-5 bg-gray-900 rounded-[2.5rem] p-8 md:p-10 text-white shadow-2xl overflow-y-auto no-scrollbar">
-                  <h3 className="text-xl font-black mb-8 tracking-tight flex items-center gap-3">
-                    <i className="fas fa-layer-group text-indigo-400"></i> Logic Variations
-                  </h3>
-                  
+                  <h3 className="text-xl font-black mb-8 tracking-tight flex items-center gap-3"><i className="fas fa-layer-group text-indigo-400"></i> Logic Variations</h3>
                   <div className="mb-10">
                     <label className="text-[10px] font-black text-indigo-400 uppercase tracking-widest block mb-4">Inject Preset Logic</label>
                     <div className="flex flex-wrap gap-3">
                       {globalVariations.map(gv => (
-                        <button 
-                          key={gv.id} 
-                          disabled={editingProduct.variations?.some(v => v.id === gv.id)}
-                          onClick={() => addVariationToProduct(gv.id)}
-                          className={`px-5 py-3 rounded-2xl text-[10px] font-black uppercase transition-all border ${editingProduct.variations?.some(v => v.id === gv.id) ? 'bg-gray-800 border-gray-700 text-gray-600 opacity-50' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
-                        >
-                          + {gv.name}
-                        </button>
+                        <button key={gv.id} disabled={editingProduct.variations?.some(v => v.id === gv.id)} onClick={() => addVariationToProduct(gv.id)} className={`px-5 py-3 rounded-2xl text-[10px] font-black uppercase transition-all border ${editingProduct.variations?.some(v => v.id === gv.id) ? 'bg-gray-800 border-gray-700 text-gray-600 opacity-50' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}>+ {gv.name}</button>
                       ))}
                     </div>
                   </div>
-
                   <div className="space-y-8">
                     {editingProduct.variations?.map((v, vIdx) => (
                       <div key={v.id} className="bg-white/5 border border-white/10 rounded-[2rem] p-6 animate-in slide-in-from-right-4">
                         <div className="flex justify-between items-center mb-6">
-                          <div>
-                            <span className="text-[10px] font-black uppercase tracking-widest text-indigo-400">{v.name}</span>
-                            <p className="text-[8px] text-gray-500 uppercase font-black mt-0.5">Control Grid</p>
-                          </div>
-                          <button onClick={() => removeVariationFromProduct(v.id)} className="text-rose-400 hover:text-rose-600 transition-colors p-2">
-                            <i className="fas fa-trash-alt text-xs"></i>
-                          </button>
+                          <div><span className="text-[10px] font-black uppercase tracking-widest text-indigo-400">{v.name}</span><p className="text-[8px] text-gray-500 uppercase font-black mt-0.5">Control Grid</p></div>
+                          <button onClick={() => removeVariationFromProduct(v.id)} className="text-rose-400 hover:text-rose-600 transition-colors p-2"><i className="fas fa-trash-alt text-xs"></i></button>
                         </div>
                         <div className="space-y-4">
                           {v.options.map((opt, oIdx) => (
                             <div key={oIdx} className="bg-black/20 p-5 rounded-2xl border border-white/5">
-                              <div className="flex items-center gap-2 mb-4 border-b border-white/5 pb-2">
-                                <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
-                                <span className="font-black text-xs uppercase tracking-widest">{opt.value}</span>
-                              </div>
+                              <div className="flex items-center gap-2 mb-4 border-b border-white/5 pb-2"><span className="w-2 h-2 rounded-full bg-indigo-500"></span><span className="font-black text-xs uppercase tracking-widest">{opt.value}</span></div>
                               <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                  <label className="text-[8px] text-gray-500 font-black uppercase tracking-widest">Inventory</label>
-                                  <input 
-                                    type="number" value={opt.stock} 
-                                    onChange={e => updateVariantOption(vIdx, oIdx, 'stock', parseInt(e.target.value))}
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs font-black text-center outline-none focus:ring-1 focus:ring-indigo-500 text-white" 
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <label className="text-[8px] text-gray-500 font-black uppercase tracking-widest">Price Point</label>
-                                  <input 
-                                    type="number" value={opt.regularPrice} 
-                                    onChange={e => updateVariantOption(vIdx, oIdx, 'regularPrice', parseFloat(e.target.value))}
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs font-black text-center outline-none focus:ring-1 focus:ring-indigo-500 text-indigo-400" 
-                                  />
-                                </div>
+                                <div className="space-y-2"><label className="text-[8px] text-gray-500 font-black uppercase tracking-widest">Inventory</label><input type="number" value={opt.stock} onChange={e => updateVariantOption(vIdx, oIdx, 'stock', parseInt(e.target.value))} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs font-black text-center outline-none focus:ring-1 focus:ring-indigo-500 text-white" /></div>
+                                <div className="space-y-2"><label className="text-[8px] text-gray-500 font-black uppercase tracking-widest">Price Point</label><input type="number" value={opt.regularPrice} onChange={e => updateVariantOption(vIdx, oIdx, 'regularPrice', parseFloat(e.target.value))} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs font-black text-center outline-none focus:ring-1 focus:ring-indigo-500 text-indigo-400" /></div>
                               </div>
                             </div>
                           ))}
@@ -564,30 +515,11 @@ const AdminPanel: React.FC = () => {
                       </div>
                     ))}
                   </div>
-
-                  {(!editingProduct.variations || editingProduct.variations.length === 0) && (
-                    <div className="py-16 text-center border-2 border-dashed border-white/10 rounded-[2rem]">
-                      <i className="fas fa-plus-circle text-gray-800 text-3xl mb-4"></i>
-                      <p className="text-[10px] text-gray-600 font-black uppercase tracking-widest">No variations mapped yet.</p>
-                    </div>
-                  )}
                 </div>
               </div>
-
-              {/* Action Footer */}
               <div className="mt-10 pt-8 border-t flex flex-col sm:flex-row gap-4">
-                <button 
-                  onClick={() => setEditingProduct(null)}
-                  className="px-10 py-5 border border-gray-100 rounded-2xl font-black text-[10px] uppercase tracking-widest text-gray-400 hover:bg-gray-50 transition-all text-center"
-                >
-                  Discard Changes
-                </button>
-                <button 
-                  onClick={handleSaveProduct}
-                  className="flex-grow py-5 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl shadow-indigo-500/30 hover:bg-indigo-700 transition-all text-center"
-                >
-                  Finalize & Update Inventory
-                </button>
+                <button onClick={() => setEditingProduct(null)} className="px-10 py-5 border border-gray-100 rounded-2xl font-black text-[10px] uppercase tracking-widest text-gray-400 hover:bg-gray-50 transition-all text-center">Discard Changes</button>
+                <button onClick={handleSaveProduct} className="flex-grow py-5 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl shadow-indigo-500/30 hover:bg-indigo-700 transition-all text-center">Finalize & Update Inventory</button>
               </div>
             </div>
           </div>
