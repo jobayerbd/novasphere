@@ -42,8 +42,9 @@ const CheckoutPage: React.FC = () => {
   const handlePlaceOrder = () => {
     const finalPhone = useManualAddress ? manualAddress.phoneNumber : (selectedAddress?.phoneNumber || shippingInfo.phone);
 
-    if (!shippingInfo.name || !shippingInfo.email || !finalPhone) {
-      alert("Please provide contact name, email, and a valid phone number.");
+    // Email is now optional, so we only check name and finalPhone
+    if (!shippingInfo.name || !finalPhone) {
+      alert("Please provide contact name and a valid mobile number.");
       return;
     }
 
@@ -55,7 +56,7 @@ const CheckoutPage: React.FC = () => {
     let finalAddress: Address;
     if (useManualAddress) {
       if (!manualAddress.fullName || !manualAddress.street || !manualAddress.city || !manualAddress.zip || !manualAddress.phoneNumber) {
-        alert("Please complete all shipping address fields including phone number.");
+        alert("Please complete the shipping address: Name, Street, City, ZIP and Mobile are required.");
         return;
       }
       finalAddress = {
@@ -76,194 +77,212 @@ const CheckoutPage: React.FC = () => {
 
   if (cart.length === 0) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-20 text-center">
-        <h2 className="text-2xl font-black mb-6 text-gray-900">Your bag is empty</h2>
-        <button onClick={() => setViewMode('store')} className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl">Explore Collection</button>
+      <div className="max-w-7xl mx-auto px-4 py-16 text-center">
+        <h2 className="text-xl font-black mb-4 text-gray-900 tracking-tight">Your bag is empty</h2>
+        <button onClick={() => setViewMode('store')} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-black shadow-lg text-sm">Return to Shop</button>
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6 md:py-12 animate-in fade-in duration-500">
-      <h1 className="text-3xl md:text-5xl font-black mb-8 md:mb-12 tracking-tighter text-gray-900 text-center md:text-left">Checkout</h1>
+    <div className="max-w-5xl mx-auto px-4 py-4 md:py-10 animate-in fade-in duration-500">
+      <h1 className="text-2xl md:text-4xl font-black mb-6 md:mb-10 tracking-tighter text-gray-900">Secure Checkout</h1>
       
-      <div className="flex flex-col lg:grid lg:grid-cols-12 gap-8 md:gap-12">
-        <div className="lg:col-span-7 space-y-6 md:space-y-8">
-          {/* Step 1: Shipping Address */}
-          <section className="bg-white p-6 md:p-8 rounded-3xl border shadow-sm">
-            <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col lg:grid lg:grid-cols-12 gap-6 md:gap-8">
+        <div className="lg:col-span-7 space-y-4 md:space-y-6">
+          
+          {/* Contact Section - Compact */}
+          <section className="bg-white p-5 md:p-6 rounded-2xl border shadow-sm">
+            <div className="flex items-center gap-3 mb-5">
+              <span className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-black text-xs">1</span>
+              <h3 className="text-lg font-black text-gray-900">Contact Info</h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <input 
+                type="text" placeholder="Full Name *"
+                value={shippingInfo.name}
+                onChange={e => setShippingInfo({ ...shippingInfo, name: e.target.value })}
+                className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3.5 outline-none font-bold text-xs focus:ring-2 focus:ring-indigo-500 transition-all"
+              />
+              <input 
+                type="email" placeholder="Email (Optional)"
+                value={shippingInfo.email}
+                onChange={e => setShippingInfo({ ...shippingInfo, email: e.target.value })}
+                className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3.5 outline-none font-bold text-xs focus:ring-2 focus:ring-indigo-500 transition-all"
+              />
+            </div>
+          </section>
+
+          {/* Step 2: Shipping Address - More Dense */}
+          <section className="bg-white p-5 md:p-6 rounded-2xl border shadow-sm">
+            <div className="flex justify-between items-center mb-5">
               <div className="flex items-center gap-3">
-                <span className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-sm shadow-md">1</span>
-                <h3 className="text-xl font-black text-gray-900">Shipping Info</h3>
+                <span className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-black text-xs">2</span>
+                <h3 className="text-lg font-black text-gray-900">Delivery Address</h3>
               </div>
               {currentUser && currentUser.addresses.length > 0 && (
                 <button 
                   onClick={() => setUseManualAddress(!useManualAddress)}
-                  className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:underline"
+                  className="text-[10px] font-black text-indigo-600 uppercase tracking-widest"
                 >
-                  {useManualAddress ? 'Use Saved' : 'Add New'}
+                  {useManualAddress ? 'Use Saved' : 'Change'}
                 </button>
               )}
             </div>
 
             {!useManualAddress && currentUser && currentUser.addresses.length > 0 ? (
-              <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-1 gap-2">
                 {currentUser.addresses.map(addr => (
                   <button 
                     key={addr.id}
                     onClick={() => setSelectedAddress(addr)}
-                    className={`text-left p-5 rounded-2xl border-2 transition-all flex justify-between items-center ${selectedAddress?.id === addr.id ? 'border-indigo-600 bg-indigo-50/30' : 'border-gray-50 bg-gray-50/20'}`}
+                    className={`text-left p-4 rounded-xl border-2 transition-all flex justify-between items-center ${selectedAddress?.id === addr.id ? 'border-indigo-600 bg-indigo-50/20' : 'border-gray-50 bg-gray-50/10'}`}
                   >
                     <div>
-                      <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest block mb-1">{addr.label}</span>
-                      <p className="font-black text-gray-900 text-sm">{addr.fullName}</p>
-                      <p className="text-gray-500 text-xs font-medium mt-1">{addr.street}, {addr.city}</p>
-                      <p className="text-indigo-600 text-xs font-bold mt-1">{addr.phoneNumber}</p>
+                      <p className="font-black text-gray-900 text-xs">{addr.fullName} <span className="text-[9px] text-gray-400 font-bold ml-2 uppercase">({addr.label})</span></p>
+                      <p className="text-gray-500 text-[10px] font-medium mt-0.5">{addr.street}, {addr.city}</p>
+                      <p className="text-indigo-600 text-[10px] font-bold mt-0.5">{addr.phoneNumber}</p>
                     </div>
-                    {selectedAddress?.id === addr.id && <i className="fas fa-check-circle text-indigo-600 text-lg"></i>}
+                    {selectedAddress?.id === addr.id && <i className="fas fa-check-circle text-indigo-600 text-sm"></i>}
                   </button>
                 ))}
               </div>
             ) : (
-              <div className="space-y-4 animate-in fade-in duration-300">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3 animate-in fade-in duration-300">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                    <input 
-                    type="text" placeholder="Full Name *"
+                    type="text" placeholder="Receiver's Name *"
                     value={manualAddress.fullName}
                     onChange={e => setManualAddress({ ...manualAddress, fullName: e.target.value })}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-xl p-4 outline-none font-bold text-sm focus:ring-2 focus:ring-indigo-500 transition-all"
+                    className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3.5 outline-none font-bold text-xs focus:ring-2 focus:ring-indigo-500 transition-all"
                   />
                   <input 
                     type="tel" placeholder="Mobile Number *"
                     value={manualAddress.phoneNumber}
                     onChange={e => setManualAddress({ ...manualAddress, phoneNumber: e.target.value })}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-xl p-4 outline-none font-bold text-sm focus:ring-2 focus:ring-indigo-500 transition-all"
+                    className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3.5 outline-none font-bold text-xs focus:ring-2 focus:ring-indigo-500 transition-all"
                   />
                 </div>
                 <input 
-                  type="text" placeholder="Street Address / Area *"
+                  type="text" placeholder="House / Street / Road / Area *"
                   value={manualAddress.street}
                   onChange={e => setManualAddress({ ...manualAddress, street: e.target.value })}
-                  className="w-full bg-gray-50 border border-gray-100 rounded-xl p-4 outline-none font-bold text-sm focus:ring-2 focus:ring-indigo-500 transition-all"
+                  className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3.5 outline-none font-bold text-xs focus:ring-2 focus:ring-indigo-500 transition-all"
                 />
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                    <input 
                     type="text" placeholder="City *"
                     value={manualAddress.city}
                     onChange={e => setManualAddress({ ...manualAddress, city: e.target.value })}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-xl p-4 outline-none font-bold text-sm focus:ring-2 focus:ring-indigo-500 transition-all"
+                    className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3.5 outline-none font-bold text-xs focus:ring-2 focus:ring-indigo-500 transition-all"
                   />
                   <input 
-                    type="text" placeholder="ZIP Code *"
+                    type="text" placeholder="ZIP (Optional)"
                     value={manualAddress.zip}
                     onChange={e => setManualAddress({ ...manualAddress, zip: e.target.value })}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-xl p-4 outline-none font-bold text-sm focus:ring-2 focus:ring-indigo-500 transition-all"
+                    className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3.5 outline-none font-bold text-xs focus:ring-2 focus:ring-indigo-500 transition-all"
                   />
                 </div>
               </div>
             )}
           </section>
 
-          {/* Step 2: Shipping Method */}
-          <section className="bg-white p-6 md:p-8 rounded-3xl border shadow-sm">
-             <div className="flex items-center gap-3 mb-6">
-                <span className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-sm shadow-md">2</span>
-                <h3 className="text-xl font-black text-gray-900">Shipping</h3>
-             </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {shippingOptions.map(option => (
+          {/* Step 3: Shipping & Payment - Grid for density */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <section className="bg-white p-5 rounded-2xl border shadow-sm">
+               <div className="flex items-center gap-3 mb-4">
+                  <span className="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-black text-[10px]">3</span>
+                  <h3 className="text-sm font-black text-gray-900 uppercase tracking-tight">Shipping</h3>
+               </div>
+               <div className="space-y-2">
+                  {shippingOptions.map(option => (
+                    <button 
+                      key={option.id}
+                      onClick={() => setSelectedShipping(option)}
+                      className={`w-full p-3 rounded-xl border-2 text-left transition-all ${selectedShipping?.id === option.id ? 'border-indigo-600 bg-indigo-50/10' : 'border-gray-50 bg-gray-50/50'}`}
+                    >
+                      <div className="flex justify-between items-center">
+                         <span className="font-black text-gray-900 text-[10px]">{option.name}</span>
+                         <span className="font-black text-indigo-600 text-[10px]">${option.charge}</span>
+                      </div>
+                    </button>
+                  ))}
+               </div>
+            </section>
+
+            <section className="bg-white p-5 rounded-2xl border shadow-sm">
+              <div className="flex items-center gap-3 mb-4">
+                <span className="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-black text-[10px]">4</span>
+                <h3 className="text-sm font-black text-gray-900 uppercase tracking-tight">Payment</h3>
+              </div>
+              <div className="space-y-2">
+                {paymentMethods.filter(p => p.isActive).map(method => (
                   <button 
-                    key={option.id}
-                    onClick={() => setSelectedShipping(option)}
-                    className={`p-5 rounded-2xl border-2 text-left transition-all ${selectedShipping?.id === option.id ? 'border-indigo-600 bg-indigo-50/30' : 'border-gray-100 bg-gray-50/50 hover:bg-gray-100'}`}
+                    key={method.id}
+                    onClick={() => setSelectedPayment(method)}
+                    className={`w-full p-3 rounded-xl border-2 text-left transition-all flex items-center justify-between ${selectedPayment?.id === method.id ? 'border-indigo-600 bg-indigo-50/10' : 'border-gray-50 bg-gray-50/50'}`}
                   >
-                    <div className="flex justify-between items-center">
-                       <span className="font-black text-gray-900 text-sm">{option.name}</span>
-                       <span className="font-black text-indigo-600 text-sm">${option.charge.toFixed(2)}</span>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${selectedPayment?.id === method.id ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                        <i className={`fas ${method.name.toLowerCase().includes('cash') ? 'fa-money-bill' : 'fa-credit-card'} text-[10px]`}></i>
+                      </div>
+                      <span className="font-black text-gray-900 text-[10px]">{method.name}</span>
                     </div>
                   </button>
                 ))}
-             </div>
-          </section>
-
-          {/* Step 3: Payment Selection */}
-          <section className="bg-white p-6 md:p-8 rounded-3xl border shadow-sm">
-            <div className="flex items-center gap-3 mb-6">
-              <span className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-sm shadow-md">3</span>
-              <h3 className="text-xl font-black text-gray-900">Payment</h3>
-            </div>
-            <div className="space-y-3">
-              {paymentMethods.filter(p => p.isActive).map(method => (
-                <button 
-                  key={method.id}
-                  onClick={() => setSelectedPayment(method)}
-                  className={`w-full p-5 rounded-2xl border-2 text-left transition-all flex items-center justify-between ${selectedPayment?.id === method.id ? 'border-indigo-600 bg-indigo-50/30' : 'border-gray-100 bg-gray-50/50'}`}
-                >
-                  <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${selectedPayment?.id === method.id ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
-                      <i className={`fas ${method.name.toLowerCase().includes('cash') ? 'fa-money-bill-wave' : 'fa-credit-card'} text-xs`}></i>
-                    </div>
-                    <div>
-                      <p className="font-black text-gray-900 text-sm">{method.name}</p>
-                    </div>
-                  </div>
-                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedPayment?.id === method.id ? 'border-indigo-600' : 'border-gray-300'}`}>
-                    {selectedPayment?.id === method.id && <div className="w-2.5 h-2.5 bg-indigo-600 rounded-full"></div>}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </section>
+              </div>
+            </section>
+          </div>
         </div>
 
-        {/* Sidebar Summary */}
+        {/* Sidebar Summary - Compact and sticky on desktop */}
         <div className="lg:col-span-5">
-          <div className="sticky top-24 space-y-6">
-            <div className="bg-gray-900 text-white p-6 md:p-8 rounded-[2rem] shadow-2xl relative overflow-hidden">
-              <h3 className="text-xl font-black mb-6 tracking-tight">Order Summary</h3>
+          <div className="sticky top-24 space-y-4">
+            <div className="bg-gray-900 text-white p-6 rounded-[1.5rem] shadow-xl relative">
+              <h3 className="text-lg font-black mb-4 tracking-tight">Order Details</h3>
               
-              <div className="space-y-4 mb-6 max-h-64 overflow-y-auto pr-2 no-scrollbar border-b border-white/10 pb-6">
+              <div className="space-y-3 mb-5 max-h-48 overflow-y-auto pr-2 no-scrollbar border-b border-white/10 pb-5">
                 {cart.map((item, idx) => (
-                  <div key={`${item.id}-${idx}`} className="flex gap-4">
-                    <img src={item.image} className="w-14 h-14 rounded-xl object-cover border border-white/10" alt="" />
+                  <div key={`${item.id}-${idx}`} className="flex gap-3">
+                    <img src={item.image} className="w-10 h-10 rounded-lg object-cover border border-white/10" alt="" />
                     <div className="flex-grow flex flex-col justify-center">
-                      <p className="font-black text-xs leading-tight mb-1">{item.name}</p>
-                      <p className="text-[9px] text-indigo-400 font-black uppercase tracking-widest">Qty: {item.quantity}</p>
+                      <p className="font-black text-[10px] leading-tight mb-0.5 line-clamp-1">{item.name}</p>
+                      <p className="text-[8px] text-indigo-400 font-black uppercase tracking-widest">Qty: {item.quantity}</p>
                     </div>
-                    <p className="font-black text-xs self-center">${((item.finalUnitPrice || item.price || 0) * item.quantity).toFixed(2)}</p>
+                    <p className="font-black text-[10px] self-center">${((item.finalUnitPrice || item.price || 0) * item.quantity).toFixed(2)}</p>
                   </div>
                 ))}
               </div>
 
-              <div className="space-y-3">
-                <div className="flex justify-between text-xs">
-                  <span className="text-gray-400 font-bold uppercase tracking-widest text-[9px]">Subtotal</span>
-                  <span className="font-black">${subtotal.toFixed(2)}</span>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-400 font-bold uppercase tracking-widest text-[8px]">Subtotal</span>
+                  <span className="font-black text-[10px]">${subtotal.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-gray-400 font-bold uppercase tracking-widest text-[9px]">Shipping</span>
-                  <span className="font-black text-indigo-400">+ ${shippingCharge.toFixed(2)}</span>
+                <div className="flex justify-between">
+                  <span className="text-gray-400 font-bold uppercase tracking-widest text-[8px]">Shipping</span>
+                  <span className="font-black text-indigo-400 text-[10px]">+ ${shippingCharge.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between text-2xl font-black pt-4 border-t border-white/10 tracking-tighter">
-                  <span>Payable</span>
-                  <span>${cartTotal.toFixed(2)}</span>
+                <div className="flex justify-between items-baseline pt-3 border-t border-white/10">
+                  <span className="text-[10px] font-black uppercase tracking-tight">Total Payable</span>
+                  <span className="text-2xl font-black tracking-tighter">${cartTotal.toFixed(2)}</span>
                 </div>
               </div>
 
               <button 
                 onClick={handlePlaceOrder}
-                className="w-full bg-white text-gray-900 py-4 rounded-xl font-black mt-8 hover:bg-indigo-400 hover:text-white transition-all shadow-xl active:scale-95 uppercase tracking-widest text-xs"
+                className="w-full bg-white text-gray-900 py-3.5 rounded-xl font-black mt-6 hover:bg-indigo-400 hover:text-white transition-all shadow-lg text-[10px] uppercase tracking-widest"
               >
-                Place Order
+                Place Order Now
               </button>
             </div>
             
-            <div className="bg-white p-5 rounded-2xl flex gap-4 border shadow-sm items-center">
-              <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                <i className="fas fa-shield-halved text-sm"></i>
+            <div className="bg-white p-4 rounded-xl flex gap-3 border shadow-sm items-center">
+              <div className="w-8 h-8 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                <i className="fas fa-lock text-xs"></i>
               </div>
-              <p className="text-[9px] text-gray-500 leading-relaxed font-bold uppercase tracking-widest">
-                Safe & Secure 256-bit SSL Encrypted Transactions
+              <p className="text-[9px] text-gray-500 leading-tight font-bold uppercase tracking-widest">
+                Safe & Encrypted Checkout
               </p>
             </div>
           </div>
