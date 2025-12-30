@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Product, Order, CartItem, Category, ViewMode, User, Address, GlobalVariation, ShippingOption, PaymentMethod } from '../types';
-import { INITIAL_PRODUCTS, INITIAL_ORDERS, CATEGORIES } from '../constants';
+import { CATEGORIES } from '../constants';
 import { initPixel, trackPixelEvent } from '../services/fbPixel';
 
 interface AppContextType {
@@ -18,17 +18,18 @@ interface AppContextType {
   selectedProduct: Product | null;
   lastOrder: Order | null;
   pixelId: string;
+  isLoading: boolean;
   setViewMode: (mode: ViewMode) => void;
   setSelectedProduct: (product: Product | null) => void;
   addToCart: (product: Product, quantity?: number, selectedOptions?: Record<string, string>, price?: number) => void;
   removeFromCart: (productId: string) => void;
   updateCartQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
-  addProduct: (product: Product) => void;
-  updateProduct: (product: Product) => void;
-  deleteProduct: (id: string) => void;
-  placeOrder: (customer: { name: string; email: string; phone: string }, address: Address, shipping: ShippingOption, payment: PaymentMethod) => void;
-  updateOrderStatus: (orderId: string, status: Order['status']) => void;
+  addProduct: (product: Product) => Promise<void>;
+  updateProduct: (product: Product) => Promise<void>;
+  deleteProduct: (id: string) => Promise<void>;
+  placeOrder: (customer: { name: string; email: string; phone: string }, address: Address, shipping: ShippingOption, payment: PaymentMethod) => Promise<void>;
+  updateOrderStatus: (orderId: string, status: Order['status']) => Promise<void>;
   login: (email: string, pass: string) => boolean;
   signup: (name: string, email: string, pass: string) => void;
   logout: () => void;
@@ -43,11 +44,6 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const MOCK_GLOBAL_VARS: GlobalVariation[] = [
-  { id: 'gv1', name: 'Size', options: ['S', 'M', 'L', 'XL'] },
-  { id: 'gv2', name: 'Color', options: ['Midnight Black', 'Pearl White', 'Ruby Red'] },
-];
-
 const DEFAULT_SHIPPING: ShippingOption[] = [
   { id: 's1', name: 'Inside City', charge: 60 },
   { id: 's2', name: 'Outside City', charge: 120 },
@@ -59,9 +55,10 @@ const DEFAULT_PAYMENTS: PaymentMethod[] = [
 ];
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
-  const [globalVariations, setGlobalVariations] = useState<GlobalVariation[]>(MOCK_GLOBAL_VARS);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [globalVariations, setGlobalVariations] = useState<GlobalVariation[]>([]);
   const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>(DEFAULT_SHIPPING);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(DEFAULT_PAYMENTS);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -72,17 +69,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
   const [pixelId, setPixelIdState] = useState<string>(localStorage.getItem('nova_pixel_id') || '');
 
-  // Initialize Pixel as soon as ID is available
+  // Fetch data on mount
   useEffect(() => {
-    if (pixelId) {
-      initPixel(pixelId);
-    }
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const [prodRes, orderRes] = await Promise.all([
+          fetch('/api/products'),
+          fetch('/api/orders')
+        ]);
+        if (prodRes.ok) setProducts(await prodRes.json());
+        if (orderRes.ok) setOrders(await orderRes.json());
+      } catch (err) {
+        console.error("Failed to fetch data:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  useEffect(() => {
+    if (pixelId) initPixel(pixelId);
   }, [pixelId]);
 
-  // Track PageView whenever viewMode changes (SPA Navigation)
   useEffect(() => {
     if (pixelId) {
-      // Small delay to ensure initialization is complete on first load
       const timer = setTimeout(() => {
         trackPixelEvent('PageView', { url: window.location.href, view: viewMode });
       }, 100);
@@ -93,9 +105,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const setPixelId = (id: string) => {
     setPixelIdState(id);
     localStorage.setItem('nova_pixel_id', id);
-    if (id) {
-      initPixel(id);
-    }
+    if (id) initPixel(id);
   };
 
   const addToCart = (product: Product, quantity: number = 1, selectedOptions?: Record<string, string>, price?: number) => {
@@ -114,7 +124,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return [...prev, { ...product, quantity, finalUnitPrice: unitPrice, price: unitPrice, selectedOptions }];
     });
 
-    // Track Pixel Event
     if (pixelId) {
       trackPixelEvent('AddToCart', {
         content_name: product.name,
@@ -131,14 +140,36 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setCart(prev => prev.map(item => item.id === productId ? { ...item, quantity: Math.max(1, quantity) } : item));
   };
   const clearCart = () => setCart([]);
-  const addProduct = (p: Product) => setProducts(prev => [...prev, p]);
-  const updateProduct = (p: Product) => setProducts(prev => prev.map(item => item.id === p.id ? p : item));
-  const deleteProduct = (id: string) => setProducts(prev => prev.filter(p => p.id !== id));
+
+  // Async DB Handlers
+  const addProduct = async (p: Product) => {
+    await fetch('/api/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(p)
+    });
+    setProducts(prev => [...prev, p]);
+  };
+
+  const updateProduct = async (p: Product) => {
+    await fetch('/api/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(p)
+    });
+    setProducts(prev => prev.map(item => item.id === p.id ? p : item));
+  };
+
+  const deleteProduct = async (id: string) => {
+    await fetch(`/api/products?id=${id}`, { method: 'DELETE' });
+    setProducts(prev => prev.filter(p => p.id !== id));
+  };
+
   const addGlobalVariation = (v: GlobalVariation) => setGlobalVariations(prev => [...prev, v]);
   const updateGlobalVariation = (v: GlobalVariation) => setGlobalVariations(prev => prev.map(item => item.id === v.id ? v : item));
   const deleteGlobalVariation = (id: string) => setGlobalVariations(prev => prev.filter(v => v.id !== id));
 
-  const placeOrder = (customer: { name: string; email: string; phone: string }, address: Address, shipping: ShippingOption, payment: PaymentMethod) => {
+  const placeOrder = async (customer: { name: string; email: string; phone: string }, address: Address, shipping: ShippingOption, payment: PaymentMethod) => {
     const subtotal = cart.reduce((acc, item) => acc + (item.finalUnitPrice * item.quantity), 0);
     const newOrder: Order = {
       id: `ORD-${Math.floor(Math.random() * 9000) + 1000}`,
@@ -155,10 +186,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       status: 'pending',
       shippingAddress: address
     };
+
+    await fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newOrder)
+    });
+
     setOrders(prev => [newOrder, ...prev]);
     setLastOrder(newOrder);
 
-    // Track Pixel Purchase
     if (pixelId) {
       trackPixelEvent('Purchase', {
         value: newOrder.total,
@@ -173,7 +210,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setViewMode('thank-you');
   };
 
-  const updateOrderStatus = (orderId: string, status: Order['status']) => {
+  const updateOrderStatus = async (orderId: string, status: Order['status']) => {
+    await fetch('/api/orders', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: orderId, status })
+    });
     setOrders(prev => prev.map(order => order.id === orderId ? { ...order, status } : order));
   };
 
@@ -195,7 +237,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   return (
     <AppContext.Provider value={{
-      products, orders, categories: CATEGORIES, globalVariations, shippingOptions, paymentMethods, cart, viewMode, currentUser, users, selectedProduct, lastOrder, pixelId,
+      products, orders, categories: CATEGORIES, globalVariations, shippingOptions, paymentMethods, cart, viewMode, currentUser, users, selectedProduct, lastOrder, pixelId, isLoading,
       setViewMode, setSelectedProduct, addToCart, removeFromCart, updateCartQuantity, clearCart,
       addProduct, updateProduct, deleteProduct, placeOrder, updateOrderStatus,
       login, signup, logout, updateUser, addGlobalVariation, updateGlobalVariation, deleteGlobalVariation,

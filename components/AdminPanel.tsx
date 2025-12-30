@@ -5,6 +5,7 @@ import { Product, Order, GlobalVariation, ProductVariation, ProductVariantOption
 import { isPixelBlocked, trackPixelEvent } from '../services/fbPixel';
 
 type AdminTab = 'dashboard' | 'products' | 'orders' | 'variations' | 'settings';
+type SortOption = 'date-desc' | 'date-asc' | 'total-desc' | 'total-asc';
 
 const AdminPanel: React.FC = () => {
   const { 
@@ -22,6 +23,10 @@ const AdminPanel: React.FC = () => {
   const [newShipping, setNewShipping] = useState<Partial<ShippingOption>>({ name: '', charge: 0 });
   const [tempPixelId, setTempPixelId] = useState(pixelId);
   const [pixelStatus, setPixelStatus] = useState<'checking' | 'active' | 'blocked' | 'idle'>('idle');
+
+  // Order Filtering & Sorting States
+  const [orderFilter, setOrderFilter] = useState<Order['status'] | 'all'>('all');
+  const [orderSort, setOrderSort] = useState<SortOption>('date-desc');
 
   useEffect(() => {
     if (pixelId) {
@@ -42,6 +47,34 @@ const AdminPanel: React.FC = () => {
       inventoryCount: products.reduce((acc, p) => acc + p.stock, 0)
     };
   }, [orders, products]);
+
+  // Processed Orders (Filtered and Sorted)
+  const processedOrders = useMemo(() => {
+    let result = [...orders];
+
+    // Filtering
+    if (orderFilter !== 'all') {
+      result = result.filter(o => o.status === orderFilter);
+    }
+
+    // Sorting
+    result.sort((a, b) => {
+      switch (orderSort) {
+        case 'date-desc':
+          return new Date(b.date).getTime() - new Date(a.date).getTime();
+        case 'date-asc':
+          return new Date(a.date).getTime() - new Date(b.date).getTime();
+        case 'total-desc':
+          return b.total - a.total;
+        case 'total-asc':
+          return a.total - b.total;
+        default:
+          return 0;
+      }
+    });
+
+    return result;
+  }, [orders, orderFilter, orderSort]);
 
   const menuItems = [
     { id: 'dashboard', label: 'Overview', icon: 'fa-chart-line' },
@@ -65,12 +98,10 @@ const AdminPanel: React.FC = () => {
     alert("Test event 'Contact' sent to Pixel queue. Check your Events Manager.");
   };
 
-  // Fix: Added missing removeShipping handler
   const removeShipping = (id: string) => {
     setShippingOptions(shippingOptions.filter(opt => opt.id !== id));
   };
 
-  // Fix: Added missing handleAddShipping handler
   const handleAddShipping = () => {
     if (!newShipping.name) {
       alert("Shipping name is required.");
@@ -85,7 +116,6 @@ const AdminPanel: React.FC = () => {
     setNewShipping({ name: '', charge: 0 });
   };
 
-  // Fix: Added missing togglePaymentMethod handler
   const togglePaymentMethod = (id: string) => {
     setPaymentMethods(paymentMethods.map(m => m.id === id ? { ...m, isActive: !m.isActive } : m));
   };
@@ -262,43 +292,159 @@ const AdminPanel: React.FC = () => {
         )}
 
         {activeTab === 'orders' && (
-          <div className="bg-white rounded-3xl border overflow-hidden shadow-sm animate-in fade-in">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="px-8 py-5 text-[10px] font-black uppercase text-gray-400">ID</th>
-                    <th className="px-8 py-5 text-[10px] font-black uppercase text-gray-400">Customer</th>
-                    <th className="px-8 py-5 text-[10px] font-black uppercase text-gray-400">Total</th>
-                    <th className="px-8 py-5 text-right text-[10px] font-black uppercase text-gray-400 pr-12">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {orders.map(order => (
-                    <tr key={order.id}>
-                      <td className="px-8 py-5 font-mono text-xs font-bold text-indigo-600">#{order.id.split('-')[1]}</td>
-                      <td className="px-8 py-5">
-                        <p className="font-bold text-gray-900 text-sm">{order.customerName}</p>
-                        <p className="text-[10px] text-gray-400 font-medium">{order.customerPhone}</p>
-                      </td>
-                      <td className="px-8 py-5 font-black text-sm">${order.total.toFixed(2)}</td>
-                      <td className="px-8 py-5 text-right pr-12">
-                        <select 
-                          value={order.status}
-                          onChange={(e) => updateOrderStatus(order.id, e.target.value as Order['status'])}
-                          className="text-[10px] font-black uppercase border rounded-lg px-4 py-2 focus:ring-0 bg-gray-50 outline-none"
-                        >
-                          <option value="pending">Pending</option>
-                          <option value="shipped">Shipped</option>
-                          <option value="delivered">Delivered</option>
-                          <option value="cancelled">Cancelled</option>
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <div className="space-y-6 animate-in fade-in">
+            {/* Filtering & Sorting Controls */}
+            <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center bg-white p-5 rounded-2xl border shadow-sm">
+              <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Filter by Status</p>
+                  <select 
+                    value={orderFilter}
+                    onChange={(e) => setOrderFilter(e.target.value as any)}
+                    className="w-full sm:w-48 bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-black uppercase tracking-tight outline-none focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer transition-all"
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="pending">Pending</option>
+                    <option value="shipped">Shipped</option>
+                    <option value="delivered">Delivered</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Sort Orders</p>
+                  <select 
+                    value={orderSort}
+                    onChange={(e) => setOrderSort(e.target.value as any)}
+                    className="w-full sm:w-48 bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-black uppercase tracking-tight outline-none focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer transition-all"
+                  >
+                    <option value="date-desc">Date: Newest First</option>
+                    <option value="date-asc">Date: Oldest First</option>
+                    <option value="total-desc">Amount: High to Low</option>
+                    <option value="total-asc">Amount: Low to High</option>
+                  </select>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Results</p>
+                <p className="text-lg font-black text-indigo-600">{processedOrders.length} Orders</p>
+              </div>
             </div>
+
+            <div className="bg-white rounded-3xl border overflow-hidden shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-gray-50 border-b">
+                    <tr>
+                      <th className="px-8 py-5 text-[10px] font-black uppercase text-gray-400">Date & ID</th>
+                      <th className="px-8 py-5 text-[10px] font-black uppercase text-gray-400">Customer</th>
+                      <th className="px-8 py-5 text-[10px] font-black uppercase text-gray-400">Total Amount</th>
+                      <th className="px-8 py-5 text-right text-[10px] font-black uppercase text-gray-400 pr-12">Current Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {processedOrders.map(order => (
+                      <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="px-8 py-5">
+                          <p className="text-[10px] font-black text-indigo-600 mb-0.5 uppercase tracking-tighter">#{order.id.split('-')[1]}</p>
+                          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{order.date}</p>
+                        </td>
+                        <td className="px-8 py-5">
+                          <p className="font-bold text-gray-900 text-sm">{order.customerName}</p>
+                          <p className="text-[10px] text-gray-400 font-medium">{order.customerPhone}</p>
+                        </td>
+                        <td className="px-8 py-5">
+                          <p className="font-black text-sm text-gray-900">${order.total.toFixed(2)}</p>
+                          <p className="text-[9px] text-gray-400 font-bold uppercase">{order.items.length} Items</p>
+                        </td>
+                        <td className="px-8 py-5 text-right pr-12">
+                          <div className="inline-block relative">
+                            <select 
+                              value={order.status}
+                              onChange={(e) => updateOrderStatus(order.id, e.target.value as Order['status'])}
+                              className={`text-[10px] font-black uppercase border rounded-lg px-4 py-2 focus:ring-0 outline-none cursor-pointer transition-all ${
+                                order.status === 'delivered' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                order.status === 'cancelled' ? 'bg-rose-50 text-rose-600 border-rose-100' :
+                                order.status === 'shipped' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                                'bg-yellow-50 text-yellow-600 border-yellow-100'
+                              }`}
+                            >
+                              <option value="pending">Pending</option>
+                              <option value="shipped">Shipped</option>
+                              <option value="delivered">Delivered</option>
+                              <option value="cancelled">Cancelled</option>
+                            </select>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {processedOrders.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-8 py-20 text-center">
+                          <i className="fas fa-search text-3xl text-gray-100 mb-4"></i>
+                          <p className="text-gray-400 font-bold text-sm">No orders found matching your filters.</p>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'variations' && (
+          <div className="space-y-6 animate-in fade-in">
+             <div className="bg-white p-8 rounded-3xl border shadow-sm">
+                <div className="flex justify-between items-center mb-8">
+                  <h3 className="text-xl font-black text-gray-900">Global Variations</h3>
+                  <button 
+                    onClick={() => {
+                      const name = prompt("Variation Name (e.g. Size, Color)");
+                      if (name) addGlobalVariation({ id: `gv-${Date.now()}`, name, options: [] });
+                    }}
+                    className="bg-gray-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest"
+                  >
+                    + Add Preset
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {globalVariations.map(gv => (
+                    <div key={gv.id} className="p-6 bg-gray-50 rounded-[2rem] border border-gray-100 group relative">
+                      <button onClick={() => deleteGlobalVariation(gv.id)} className="absolute top-4 right-4 text-gray-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <i className="fas fa-trash-alt text-xs"></i>
+                      </button>
+                      <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-4">{gv.name}</p>
+                      <div className="flex flex-wrap gap-2 mb-6">
+                        {gv.options.map((opt, idx) => (
+                          <span key={idx} className="bg-white px-3 py-1 rounded-lg border text-[10px] font-black text-gray-600 uppercase">
+                            {opt}
+                            <button 
+                              onClick={() => updateGlobalVariation({...gv, options: gv.options.filter((_, i) => i !== idx)})}
+                              className="ml-2 text-gray-300 hover:text-rose-500"
+                            >
+                              &times;
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <input 
+                          placeholder="Add Option..." className="flex-grow bg-white border border-gray-100 p-3 rounded-xl text-[10px] outline-none font-bold"
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              const val = (e.target as HTMLInputElement).value;
+                              if (val) {
+                                updateGlobalVariation({...gv, options: [...gv.options, val]});
+                                (e.target as HTMLInputElement).value = '';
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+             </div>
           </div>
         )}
 
@@ -470,7 +616,7 @@ const AdminPanel: React.FC = () => {
                     </div>
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
-                        <span className="text-9px font-black text-gray-400 uppercase tracking-widest">Gallery Expansion</span>
+                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Gallery Expansion</span>
                         <button onClick={addGalleryImage} className="text-[9px] font-black text-indigo-600 uppercase tracking-widest hover:underline">+ Add New Slide</button>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
