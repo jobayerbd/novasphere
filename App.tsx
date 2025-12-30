@@ -4,7 +4,6 @@ import { AppProvider, useApp } from './store/AppContext';
 import Layout from './components/Layout';
 import Storefront from './components/Storefront';
 import AdminPanel from './components/AdminPanel';
-import ChatSupport from './components/ChatSupport';
 import UserProfile from './components/UserProfile';
 import ProductDetail from './components/ProductDetail';
 import CheckoutPage from './components/CheckoutPage';
@@ -37,7 +36,6 @@ const AppContent: React.FC = () => {
   return (
     <Layout>
       {renderView()}
-      {(viewMode === 'store' || viewMode === 'product-detail' || viewMode === 'cart') && <ChatSupport />}
     </Layout>
   );
 };

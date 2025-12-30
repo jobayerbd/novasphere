@@ -1,8 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../store/AppContext';
-import { Product, Order, User, GlobalVariation, ProductVariation, ProductVariantOption, ShippingOption, PaymentMethod } from '../types';
-import { generateProductDescription } from '../services/gemini';
+import { Product, Order, GlobalVariation, ProductVariation, ProductVariantOption, ShippingOption, PaymentMethod } from '../types';
 
 type AdminTab = 'dashboard' | 'products' | 'orders' | 'variations' | 'settings';
 
@@ -15,15 +14,13 @@ const AdminPanel: React.FC = () => {
     updateOrderStatus
   } = useApp();
   
-  const [activeTab, setActiveTab] = useState<AdminTab>('settings');
+  const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
   const [editingGlobalVar, setEditingGlobalVar] = useState<Partial<GlobalVariation> | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
   
   // Settings Local State
   const [newShipping, setNewShipping] = useState<Partial<ShippingOption>>({ name: '', charge: 0 });
-  const [galleryInput, setGalleryInput] = useState('');
   const [newOptionVal, setNewOptionVal] = useState('');
 
   const metrics = useMemo(() => {
@@ -72,19 +69,6 @@ const AdminPanel: React.FC = () => {
     setPaymentMethods(paymentMethods.map(p => 
       p.id === id ? { ...p, [field]: val } : p
     ));
-  };
-
-  // AI Description Generator
-  const handleAiGenerate = async () => {
-    if (!editingProduct?.name) {
-      alert("Please enter a product name first.");
-      return;
-    }
-    setIsGenerating(true);
-    const features = `Category: ${editingProduct.category}. Name: ${editingProduct.name}.`;
-    const desc = await generateProductDescription(editingProduct.name, editingProduct.category || 'General', features);
-    setEditingProduct(prev => ({ ...prev, description: desc }));
-    setIsGenerating(false);
   };
 
   // Save Product
@@ -195,6 +179,24 @@ const AdminPanel: React.FC = () => {
           )}
         </div>
 
+        {/* --- DASHBOARD TAB --- */}
+        {activeTab === 'dashboard' && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 animate-in fade-in">
+            <div className="bg-white p-10 rounded-[2.5rem] border shadow-sm">
+               <p className="text-[10px] font-black uppercase text-gray-400 mb-2">Total Revenue</p>
+               <p className="text-4xl font-black text-gray-900">${metrics.revenue.toLocaleString()}</p>
+            </div>
+            <div className="bg-white p-10 rounded-[2.5rem] border shadow-sm">
+               <p className="text-[10px] font-black uppercase text-gray-400 mb-2">Processed Orders</p>
+               <p className="text-4xl font-black text-gray-900">{metrics.orderCount}</p>
+            </div>
+            <div className="bg-white p-10 rounded-[2.5rem] border shadow-sm">
+               <p className="text-[10px] font-black uppercase text-gray-400 mb-2">Live Catalog</p>
+               <p className="text-4xl font-black text-gray-900">{products.length}</p>
+            </div>
+          </div>
+        )}
+
         {/* --- SETTINGS TAB --- */}
         {activeTab === 'settings' && (
           <div className="space-y-12 animate-in fade-in max-w-5xl">
@@ -277,24 +279,6 @@ const AdminPanel: React.FC = () => {
                   </div>
                 ))}
               </div>
-            </div>
-
-            {/* General Store Information (Visual Placeholder) */}
-            <div className="bg-white p-10 rounded-[2.5rem] border shadow-sm opacity-50">
-               <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-xl font-black">Store Branding</h3>
-                  <span className="text-[10px] font-black uppercase bg-gray-100 px-3 py-1 rounded-full text-gray-400">Read Only</span>
-               </div>
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase">Store Name</label>
-                    <div className="p-4 bg-gray-50 rounded-2xl font-bold border">NovaSphere Premium</div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase">Support Email</label>
-                    <div className="p-4 bg-gray-50 rounded-2xl font-bold border">hello@novasphere.com</div>
-                  </div>
-               </div>
             </div>
           </div>
         )}
@@ -385,21 +369,25 @@ const AdminPanel: React.FC = () => {
           </div>
         )}
 
-        {/* Dashboard Tab */}
-        {activeTab === 'dashboard' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 animate-in fade-in">
-            <div className="bg-white p-10 rounded-[2.5rem] border shadow-sm">
-               <p className="text-[10px] font-black uppercase text-gray-400 mb-2">Total Revenue</p>
-               <p className="text-4xl font-black text-gray-900">${metrics.revenue.toLocaleString()}</p>
-            </div>
-            <div className="bg-white p-10 rounded-[2.5rem] border shadow-sm">
-               <p className="text-[10px] font-black uppercase text-gray-400 mb-2">Processed Orders</p>
-               <p className="text-4xl font-black text-gray-900">{metrics.orderCount}</p>
-            </div>
-            <div className="bg-white p-10 rounded-[2.5rem] border shadow-sm">
-               <p className="text-[10px] font-black uppercase text-gray-400 mb-2">Live Catalog</p>
-               <p className="text-4xl font-black text-gray-900">{products.length}</p>
-            </div>
+        {/* --- VARIATIONS TAB --- */}
+        {activeTab === 'variations' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-in fade-in">
+            {globalVariations.map(gv => (
+              <div key={gv.id} className="bg-white p-10 rounded-[2.5rem] border shadow-sm group hover:border-indigo-200 transition-all flex flex-col h-full">
+                <div className="flex justify-between items-start mb-6">
+                  <h3 className="text-2xl font-black text-gray-900 tracking-tight">{gv.name}</h3>
+                  <div className="flex gap-4">
+                    <button onClick={() => setEditingGlobalVar(gv)} className="text-indigo-600 text-xs font-black uppercase tracking-widest hover:underline">Edit</button>
+                    <button onClick={() => deleteGlobalVariation(gv.id)} className="text-rose-400 text-xs font-black uppercase tracking-widest hover:underline">Delete</button>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-auto">
+                  {gv.options.map(o => (
+                    <span key={o} className="px-4 py-2 bg-gray-50 border rounded-xl text-xs font-bold text-gray-600">{o}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
@@ -495,7 +483,7 @@ const AdminPanel: React.FC = () => {
           </div>
         )}
 
-        {/* Variation Editor Modal */}
+        {/* Global Variation Preset Modal */}
         {editingGlobalVar && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-[300]">
             <div className="bg-white rounded-[3rem] w-full max-w-md p-10 shadow-2xl animate-in zoom-in">
@@ -538,7 +526,7 @@ const AdminPanel: React.FC = () => {
           </div>
         )}
 
-        {/* Product Designer Modal */}
+        {/* Product Designer Modal with Variations Matrix */}
         {editingProduct && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-[200]">
             <div className="bg-white rounded-[3rem] w-full max-w-[95vw] lg:max-w-7xl p-8 lg:p-12 max-h-[95vh] overflow-y-auto shadow-2xl animate-in zoom-in no-scrollbar">
@@ -561,11 +549,11 @@ const AdminPanel: React.FC = () => {
                 <div className="xl:col-span-4 space-y-10">
                    <textarea placeholder="Main Description" rows={14} value={editingProduct.description} onChange={e => setEditingProduct({...editingProduct, description: e.target.value})} className="w-full border p-5 rounded-[1.5rem] bg-gray-50 font-medium outline-none text-sm leading-relaxed" />
                 </div>
-                <div className="xl:col-span-4 flex flex-col h-full bg-gray-900 text-white p-10 rounded-[3rem] shadow-2xl">
+                <div className="xl:col-span-4 flex flex-col h-full bg-gray-900 text-white p-10 rounded-[3rem] shadow-2xl overflow-hidden">
                    <div className="flex justify-between items-center mb-8 relative z-10">
                       <h4 className="text-2xl font-black tracking-tight">Variant Matrix</h4>
                       <select onChange={e => addVariationToProduct(e.target.value)} className="bg-white/10 text-[10px] p-3 rounded-xl outline-none font-black border border-white/20 uppercase tracking-widest" value="">
-                        <option value="" disabled className="bg-gray-800">Add Variation</option>
+                        <option value="" disabled className="bg-gray-800">Add Preset</option>
                         {globalVariations.map(gv => <option key={gv.id} value={gv.id} className="bg-gray-800">{gv.name}</option>)}
                       </select>
                    </div>
@@ -577,8 +565,14 @@ const AdminPanel: React.FC = () => {
                             <div key={oIdx} className="bg-white/5 p-5 rounded-[1.25rem] border border-white/10">
                               <p className="font-bold text-sm mb-4">{opt.value}</p>
                               <div className="grid grid-cols-2 gap-4">
-                                <input type="number" value={opt.regularPrice} onChange={e => updateVariantOption(vIdx, oIdx, 'regularPrice', parseFloat(e.target.value))} className="w-full bg-white/10 border-none rounded-xl p-2 text-xs font-bold" />
-                                <input type="number" value={opt.stock} onChange={e => updateVariantOption(vIdx, oIdx, 'stock', parseInt(e.target.value))} className="w-full bg-white/10 border-none rounded-xl p-2 text-xs font-bold" />
+                                <div className="space-y-1">
+                                  <label className="text-[8px] text-white/40 font-black uppercase">Variant Price</label>
+                                  <input type="number" value={opt.regularPrice} onChange={e => updateVariantOption(vIdx, oIdx, 'regularPrice', parseFloat(e.target.value))} className="w-full bg-white/10 border-none rounded-xl p-2 text-xs font-bold" />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[8px] text-white/40 font-black uppercase">In Stock</label>
+                                  <input type="number" value={opt.stock} onChange={e => updateVariantOption(vIdx, oIdx, 'stock', parseInt(e.target.value))} className="w-full bg-white/10 border-none rounded-xl p-2 text-xs font-bold" />
+                                </div>
                               </div>
                             </div>
                           ))}
