@@ -1,0 +1,7 @@
+{
+  "name": "NovaSphere E-Commerce & Admin",
+  "description": "A high-end, full-featured e-commerce platform with a sophisticated customer storefront and a robust administrative dashboard, featuring AI-powered product description generation and a smart customer support assistant.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
