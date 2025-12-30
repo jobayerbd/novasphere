@@ -19,6 +19,7 @@ interface AppContextType {
   lastOrder: Order | null;
   pixelId: string;
   isLoading: boolean;
+  error: string | null;
   setViewMode: (mode: ViewMode) => void;
   setSelectedProduct: (product: Product | null) => void;
   addToCart: (product: Product, quantity?: number, selectedOptions?: Record<string, string>, price?: number) => void;
@@ -58,6 +59,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [globalVariations, setGlobalVariations] = useState<GlobalVariation[]>([]);
   const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>(DEFAULT_SHIPPING);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(DEFAULT_PAYMENTS);
@@ -69,38 +71,37 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
   const [pixelId, setPixelIdState] = useState<string>(localStorage.getItem('nova_pixel_id') || '');
 
-  // Fetch data on mount
-  useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      try {
-        const [prodRes, orderRes] = await Promise.all([
-          fetch('/api/products'),
-          fetch('/api/orders')
-        ]);
-        if (prodRes.ok) setProducts(await prodRes.json());
-        if (orderRes.ok) setOrders(await orderRes.json());
-      } catch (err) {
-        console.error("Failed to fetch data:", err);
-      } finally {
-        setIsLoading(false);
+  const fetchData = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const [prodRes, orderRes] = await Promise.all([
+        fetch('/api/products'),
+        fetch('/api/orders')
+      ]);
+      
+      if (!prodRes.ok || !orderRes.ok) {
+        const pErr = await prodRes.json();
+        throw new Error(pErr.error || "Failed to connect to database");
       }
-    };
+
+      setProducts(await prodRes.json());
+      setOrders(await orderRes.json());
+    } catch (err: any) {
+      console.error("Database Error:", err);
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchData();
   }, []);
 
   useEffect(() => {
     if (pixelId) initPixel(pixelId);
   }, [pixelId]);
-
-  useEffect(() => {
-    if (pixelId) {
-      const timer = setTimeout(() => {
-        trackPixelEvent('PageView', { url: window.location.href, view: viewMode });
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [viewMode, pixelId]);
 
   const setPixelId = (id: string) => {
     setPixelIdState(id);
@@ -141,14 +142,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
   const clearCart = () => setCart([]);
 
-  // Async DB Handlers
   const addProduct = async (p: Product) => {
     await fetch('/api/products', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(p)
     });
-    setProducts(prev => [...prev, p]);
+    fetchData(); // Refresh data
   };
 
   const updateProduct = async (p: Product) => {
@@ -157,12 +157,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(p)
     });
-    setProducts(prev => prev.map(item => item.id === p.id ? p : item));
+    fetchData();
   };
 
   const deleteProduct = async (id: string) => {
     await fetch(`/api/products?id=${id}`, { method: 'DELETE' });
-    setProducts(prev => prev.filter(p => p.id !== id));
+    fetchData();
   };
 
   const addGlobalVariation = (v: GlobalVariation) => setGlobalVariations(prev => [...prev, v]);
@@ -237,7 +237,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   return (
     <AppContext.Provider value={{
-      products, orders, categories: CATEGORIES, globalVariations, shippingOptions, paymentMethods, cart, viewMode, currentUser, users, selectedProduct, lastOrder, pixelId, isLoading,
+      products, orders, categories: CATEGORIES, globalVariations, shippingOptions, paymentMethods, cart, viewMode, currentUser, users, selectedProduct, lastOrder, pixelId, isLoading, error,
       setViewMode, setSelectedProduct, addToCart, removeFromCart, updateCartQuantity, clearCart,
       addProduct, updateProduct, deleteProduct, placeOrder, updateOrderStatus,
       login, signup, logout, updateUser, addGlobalVariation, updateGlobalVariation, deleteGlobalVariation,

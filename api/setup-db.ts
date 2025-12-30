@@ -9,7 +9,7 @@ export default async function handler(
   try {
     const client = await db.connect();
 
-    // Create Products Table
+    // Products টেবিল তৈরি
     await client.sql`
       CREATE TABLE IF NOT EXISTS products (
         id TEXT PRIMARY KEY,
@@ -27,7 +27,7 @@ export default async function handler(
       );
     `;
 
-    // Create Orders Table
+    // Orders টেবিল তৈরি
     await client.sql`
       CREATE TABLE IF NOT EXISTS orders (
         id TEXT PRIMARY KEY,
@@ -46,8 +46,24 @@ export default async function handler(
       );
     `;
 
-    return response.status(200).json({ message: 'Tables created successfully' });
+    // চেক করা হচ্ছে প্রোডাক্ট আছে কি না, না থাকলে সিডিং করা হবে
+    const productCheck = await client.sql`SELECT COUNT(*) FROM products;`;
+    if (parseInt(productCheck.rows[0].count) === 0) {
+      await client.sql`
+        INSERT INTO products (id, name, description, regular_price, price, category, image, stock, rating, variations, gallery)
+        VALUES ('1', 'Aether Pro Wireless', 'Premium noise cancelling headphones.', 349.99, 299.99, 'electronics', 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=800', 25, 4.8, '[]', '[]');
+      `;
+    }
+
+    return response.status(200).json({ 
+      success: true, 
+      message: 'Database structure is ready and seeded.' 
+    });
   } catch (error: any) {
-    return response.status(500).json({ error: error.message });
+    console.error(error);
+    return response.status(500).json({ 
+      error: error.message,
+      hint: "Make sure you have linked your Vercel Postgres database in the project settings."
+    });
   }
 }
