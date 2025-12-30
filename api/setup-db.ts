@@ -1,5 +1,5 @@
 
-import { db } from '@vercel/postgres';
+import { sql } from '@vercel/postgres';
 import { VercelResponse, VercelRequest } from '@vercel/node';
 
 export default async function handler(
@@ -7,10 +7,8 @@ export default async function handler(
   response: VercelResponse
 ) {
   try {
-    const client = await db.connect();
-
-    // Products টেবিল তৈরি
-    await client.sql`
+    // Create Products table
+    await sql`
       CREATE TABLE IF NOT EXISTS products (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -27,8 +25,8 @@ export default async function handler(
       );
     `;
 
-    // Orders টেবিল তৈরি
-    await client.sql`
+    // Create Orders table
+    await sql`
       CREATE TABLE IF NOT EXISTS orders (
         id TEXT PRIMARY KEY,
         user_id TEXT,
@@ -46,10 +44,10 @@ export default async function handler(
       );
     `;
 
-    // চেক করা হচ্ছে প্রোডাক্ট আছে কি না, না থাকলে সিডিং করা হবে
-    const productCheck = await client.sql`SELECT COUNT(*) FROM products;`;
-    if (parseInt(productCheck.rows[0].count) === 0) {
-      await client.sql`
+    // Check if products exist, seed if empty
+    const { rows } = await sql`SELECT COUNT(*) FROM products;`;
+    if (parseInt(rows[0].count) === 0) {
+      await sql`
         INSERT INTO products (id, name, description, regular_price, price, category, image, stock, rating, variations, gallery)
         VALUES ('1', 'Aether Pro Wireless', 'Premium noise cancelling headphones.', 349.99, 299.99, 'electronics', 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=800', 25, 4.8, '[]', '[]');
       `;
@@ -60,10 +58,10 @@ export default async function handler(
       message: 'Database structure is ready and seeded.' 
     });
   } catch (error: any) {
-    console.error(error);
+    console.error('Setup Error:', error);
     return response.status(500).json({ 
       error: error.message,
-      hint: "Make sure you have linked your Vercel Postgres database in the project settings."
+      hint: "If you see 'invalid_connection_string', ensure you are using the 'Pooled' connection string (POSTGRES_URL) in Vercel."
     });
   }
 }
