@@ -3,6 +3,7 @@ export interface Address {
   id: string;
   label: string;
   fullName: string;
+  phoneNumber: string; // Mandatory for shipping
   street: string;
   city: string;
   zip: string;
@@ -97,6 +98,7 @@ export interface Order {
   date: string;
   customerName: string;
   customerEmail: string;
+  customerPhone: string; // Mandatory
   items: CartItem[];
   total: number;
   shippingCharge: number;

@@ -25,7 +25,7 @@ interface AppContextType {
   addProduct: (product: Product) => void;
   updateProduct: (product: Product) => void;
   deleteProduct: (id: string) => void;
-  placeOrder: (customer: { name: string; email: string }, address: Address, shipping: ShippingOption, payment: PaymentMethod) => void;
+  placeOrder: (customer: { name: string; email: string; phone: string }, address: Address, shipping: ShippingOption, payment: PaymentMethod) => void;
   updateOrderStatus: (orderId: string, status: Order['status']) => void;
   login: (email: string, pass: string) => boolean;
   signup: (name: string, email: string, pass: string) => void;
@@ -98,7 +98,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const updateGlobalVariation = (v: GlobalVariation) => setGlobalVariations(prev => prev.map(item => item.id === v.id ? v : item));
   const deleteGlobalVariation = (id: string) => setGlobalVariations(prev => prev.filter(v => v.id !== id));
 
-  const placeOrder = (customer: { name: string; email: string }, address: Address, shipping: ShippingOption, payment: PaymentMethod) => {
+  const placeOrder = (customer: { name: string; email: string; phone: string }, address: Address, shipping: ShippingOption, payment: PaymentMethod) => {
     const subtotal = cart.reduce((acc, item) => acc + (item.finalUnitPrice * item.quantity), 0);
     const newOrder: Order = {
       id: `ORD-${Math.floor(Math.random() * 9000) + 1000}`,
@@ -106,6 +106,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       date: new Date().toISOString().split('T')[0],
       customerName: customer.name,
       customerEmail: customer.email,
+      customerPhone: customer.phone,
       items: [...cart],
       total: subtotal + shipping.charge,
       shippingCharge: shipping.charge,

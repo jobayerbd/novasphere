@@ -128,6 +128,8 @@ export const INITIAL_ORDERS: Order[] = [
     date: '2023-11-20',
     customerName: 'John Doe',
     customerEmail: 'john@example.com',
+    // Fix: Added missing customerPhone property to comply with Order interface
+    customerPhone: '+880123456789',
     // Fix: provide the missing finalUnitPrice property required by CartItem
     items: [{ ...INITIAL_PRODUCTS[0], quantity: 1, finalUnitPrice: INITIAL_PRODUCTS[0].price }],
     total: 299.99,
