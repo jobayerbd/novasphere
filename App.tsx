@@ -11,7 +11,7 @@ import ThankYouPage from './components/ThankYouPage';
 import CartPage from './components/CartPage';
 
 const AppContent: React.FC = () => {
-  const { viewMode, isLoading, error } = useApp();
+  const { viewMode, isLoading, error, isLocalMode } = useApp();
 
   if (isLoading) {
     return (
@@ -23,18 +23,18 @@ const AppContent: React.FC = () => {
     );
   }
 
-  if (error) {
+  // We only show the full-page error if it's NOT a 404 (which triggers local mode)
+  // and we actually have a fatal error. 404s are handled by safe fallbacks now.
+  if (error && !isLocalMode) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
         <div className="max-w-md w-full bg-white rounded-[2rem] shadow-2xl p-10 text-center border border-rose-100">
           <div className="w-20 h-20 bg-rose-50 text-rose-500 rounded-3xl flex items-center justify-center mx-auto mb-6">
             <i className="fas fa-database text-3xl"></i>
           </div>
-          <h2 className="text-2xl font-black text-gray-900 mb-4 tracking-tight">Database Connection Failed</h2>
+          <h2 className="text-2xl font-black text-gray-900 mb-4 tracking-tight">System Error</h2>
           <p className="text-gray-500 text-sm leading-relaxed mb-8">
-            {error.includes('missing_connection_string') 
-              ? "Your project is not linked to the Vercel Postgres database. Please go to Vercel dashboard and 'Connect' your storage."
-              : error}
+            {error}
           </p>
           <button 
             onClick={() => window.location.reload()}
@@ -69,6 +69,12 @@ const AppContent: React.FC = () => {
 
   return (
     <Layout>
+      {/* Local Mode Banner */}
+      {isLocalMode && (
+        <div className="bg-amber-500 text-white text-[10px] font-black uppercase tracking-[0.2em] py-2 text-center sticky top-16 z-[90] shadow-md border-b border-amber-600/20">
+          <i className="fas fa-wifi-slash mr-2"></i> Local Mode Active (Offline Storage)
+        </div>
+      )}
       {renderView()}
     </Layout>
   );
