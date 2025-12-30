@@ -72,23 +72,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
   const [pixelId, setPixelIdState] = useState<string>(localStorage.getItem('nova_pixel_id') || '');
 
-  // Initialize Pixel if ID exists
+  // Initialize Pixel as soon as ID is available
   useEffect(() => {
     if (pixelId) {
       initPixel(pixelId);
     }
   }, [pixelId]);
 
-  // Track View Transitions
+  // Track PageView whenever viewMode changes (SPA Navigation)
   useEffect(() => {
     if (pixelId) {
-      trackPixelEvent('PageView');
+      // Small delay to ensure initialization is complete on first load
+      const timer = setTimeout(() => {
+        trackPixelEvent('PageView', { url: window.location.href, view: viewMode });
+      }, 100);
+      return () => clearTimeout(timer);
     }
   }, [viewMode, pixelId]);
 
   const setPixelId = (id: string) => {
     setPixelIdState(id);
     localStorage.setItem('nova_pixel_id', id);
+    if (id) {
+      initPixel(id);
+    }
   };
 
   const addToCart = (product: Product, quantity: number = 1, selectedOptions?: Record<string, string>, price?: number) => {
@@ -108,13 +115,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
 
     // Track Pixel Event
-    trackPixelEvent('AddToCart', {
-      content_name: product.name,
-      content_ids: [product.id],
-      content_type: 'product',
-      value: unitPrice * quantity,
-      currency: 'USD'
-    });
+    if (pixelId) {
+      trackPixelEvent('AddToCart', {
+        content_name: product.name,
+        content_ids: [product.id],
+        content_type: 'product',
+        value: unitPrice * quantity,
+        currency: 'USD'
+      });
+    }
   };
 
   const removeFromCart = (productId: string) => setCart(prev => prev.filter(item => item.id !== productId));
@@ -150,12 +159,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setLastOrder(newOrder);
 
     // Track Pixel Purchase
-    trackPixelEvent('Purchase', {
-      value: newOrder.total,
-      currency: 'USD',
-      num_items: cart.length,
-      content_ids: cart.map(i => i.id)
-    });
+    if (pixelId) {
+      trackPixelEvent('Purchase', {
+        value: newOrder.total,
+        currency: 'USD',
+        num_items: cart.length,
+        content_ids: cart.map(i => i.id),
+        content_type: 'product'
+      });
+    }
 
     clearCart();
     setViewMode('thank-you');
